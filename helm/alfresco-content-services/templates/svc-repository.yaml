@@ -1,0 +1,15 @@
+# Defines the service for the alfresco content repository app
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "content-services.shortname" . }}-repository
+  labels:
+    {{- include "repository.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.repository.service.type }}
+  ports:
+    - port: {{ .Values.repository.service.externalPort }}
+      targetPort: {{ .Values.repository.image.internalPort }}
+      name: {{ .Values.repository.service.name }}
+  selector:
+    {{- include "repository.selectorLabels" . | nindent 4 }}

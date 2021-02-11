@@ -1,0 +1,36 @@
+# Defines the properties required by the content repository
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # the name of the config map
+  name: {{ template "content-services.shortname" . }}-repository-configmap
+  labels:
+    {{- include "repository.labels" . | nindent 4 }}
+data:
+  # The JAVA_OPTS defined in the values.yaml file for the "repository" are set here using proper quotes
+  {{- if .Values.repository.environment }}
+  {{- range $key, $val := .Values.repository.environment }}
+  {{ $key }}: {{ tpl $val $ | quote }}
+  {{- end }}
+  {{- end }}
+  RELEASE_NAME: {{ .Release.Name }}
+  {{ $alfhost := tpl (.Values.externalHost | default (printf "%s-repository" (include "content-services.shortname" .))) $ }}
+  {{ $alfprotocol := tpl (.Values.externalProtocol | default "http") $ }}
+  {{ $alfport := tpl ((.Values.externalPort | default .Values.repository.service.externalPort) | toString) $ }}
+  ALFRESCO_OPTS: " -Dalfresco.host={{ $alfhost }}
+      -Dalfresco.protocol={{ $alfprotocol }}
+      -Dalfresco.port={{ $alfport }}
+      -Daos.baseUrlOverwrite={{ $alfprotocol }}://{{ $alfhost }}/alfresco/aos
+      -Dcsrf.filter.origin={{ $alfprotocol }}://{{ $alfhost }}
+      -Dcsrf.filter.referer={{ $alfprotocol }}://{{ $alfhost }}/.*
+      -Dmessaging.broker.url=failover:(nio://{{ .Release.Name }}-activemq-broker:61616)?timeout=3000&jms.useCompression=true
+      -Dmessaging.broker.username={{ .Values.activemq.adminUser.username }}
+      -Dmessaging.broker.password={{ .Values.activemq.adminUser.password }}
+      -Devents.subsystem.autoStart=false"
+  CATALINA_OPTS: " $ALFRESCO_OPTS
+      -Ddb.driver={{ .Values.database.driver | default "org.postgresql.Driver" }}
+      -Ddb.url=jdbc:postgresql://{{ printf "%s-%s" .Release.Name .Values.postgresql.nameOverride }}:5433/{{ .Values.postgresql.postgresDatabase }}
+      -Ddb.username=$DATABASE_USERNAME
+      -Ddb.password=$DATABASE_PASSWORD
+      -Dmetadata-keystore.password=$METADATA_KEYSTORE_PASSWORD
+      -Dmetadata-keystore.metadata.password=$METADATA_KEY_PASSWORD"

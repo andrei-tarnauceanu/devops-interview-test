@@ -1,0 +1,65 @@
+# Defines the deployment for the alfresco content repository app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "content-services.shortname" . }}-repository
+  labels:
+    {{- include "repository.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.repository.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "repository.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config-repository.yaml") . | sha256sum }}
+        checksum/secretDatabase: {{ include (print $.Template.BasePath "/secret-database.yaml") . | sha256sum }}
+      labels:
+        {{- include "repository.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.repository.image.repository }}:{{ .Values.repository.image.tag }}"
+          imagePullPolicy: {{ .Values.repository.image.pullPolicy }}
+          envFrom:
+          - secretRef:
+              name: {{ template "content-services.shortname" . }}-dbsecret
+          - secretRef:
+              name: {{ template "content-services.shortname" . }}-metadata-keystore-secret
+          - configMapRef:
+              # config map to use, defined in config-repository.yaml
+              name: {{ template "content-services.shortname" . }}-repository-configmap
+          ports:
+            # internal port and the hazelcast port used for clustering
+            - containerPort: {{ .Values.repository.image.internalPort }}
+            - containerPort: {{ .Values.repository.image.hazelcastPort }}
+          resources:
+{{ toYaml .Values.repository.resources | indent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-ready-
+              port: {{ .Values.repository.image.internalPort }}
+            initialDelaySeconds: {{ .Values.repository.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.repository.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.repository.readinessProbe.failureThreshold }}
+            timeoutSeconds: {{ .Values.repository.readinessProbe.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: /alfresco/api/-default-/public/alfresco/versions/1/probes/-live-
+              port: {{ .Values.repository.image.internalPort }}
+            initialDelaySeconds: {{ .Values.repository.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.repository.livenessProbe.periodSeconds }}
+            failureThreshold: 1
+            timeoutSeconds: {{ .Values.repository.livenessProbe.timeoutSeconds }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/bash", "-c", "sleep 20"]
+      initContainers:
+        # wait for the DB to startup before this deployment can start
+        - name: init-db
+          image: "{{ .Values.repository.initContainer.image.repository }}:{{ .Values.repository.initContainer.image.tag }}"
+          command: ['sh', '-c', 'until nc -w1 {{ printf "%s-%s" .Release.Name .Values.postgresql.nameOverride }} 5432; do echo "waiting for {{ printf "%s-%s" .Release.Name .Values.postgresql.nameOverride }}"; sleep 2; done;']

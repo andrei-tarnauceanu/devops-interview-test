@@ -1,0 +1,9 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 8.9.6
+- name: activemq
+  repository: ""
+  version: 2.0.0
+digest: sha256:7130389af712d2849f7a16a99e3ef69106d01d720cbea149ac30e54b6b10996f
+generated: "2020-12-10T17:06:51.39928Z"

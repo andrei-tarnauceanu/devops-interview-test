@@ -1,0 +1,9 @@
+---
+- name: Activemq Role
+  hosts: activemq
+  become: true
+  become_method: sudo
+  roles:
+    - role: '../roles/activemq'
+  tags:
+    - activemq

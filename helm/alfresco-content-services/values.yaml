@@ -1,0 +1,78 @@
+repository:
+  replicaCount: 1
+  image:
+    repository: alfresco/alfresco-content-repository
+    tag: "7.0.0-M2"
+    pullPolicy: Always
+    internalPort: 8080
+    hazelcastPort: 5701
+  initContainer:
+    image:
+      repository: busybox
+      tag: latest
+  service:
+    name: alfresco
+    # type: ClusterIP
+    type: NodePort
+    externalPort: &repositoryExternalPort 80
+  environment:
+    JAVA_OPTS: " -Dindex.subsystem.name=noindex
+      -Ddeployment.method=HELM_CHART
+      -DlocalTransform.service.enabled=false
+      -Dtransform.service.enabled=false
+      -XX:MinRAMPercentage=50 -XX:MaxRAMPercentage=80"
+    JAVA_TOOL_OPTIONS: " -Dencryption.keystore.type=JCEKS
+      -Dencryption.cipherAlgorithm=DESede/CBC/PKCS5Padding
+      -Dencryption.keyAlgorithm=DESede
+      -Dencryption.keystore.location=/usr/local/tomcat/shared/classes/alfresco/extension/keystore/keystore
+      -Dmetadata-keystore.aliases=metadata
+      -Dmetadata-keystore.metadata.algorithm=DESede"
+  resources:
+    requests:
+      memory: "3000Mi"
+    limits:
+      memory: "3000Mi"
+  # The repository readiness probe is used to check startup only as a failure
+  # of the liveness probe later will result in the pod being restarted.
+  readinessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 6
+  livenessProbe:
+    initialDelaySeconds: 130
+    periodSeconds: 20
+    timeoutSeconds: 10
+  extraVolumeMounts: []
+  extraVolumes: []
+
+database:
+  driver: org.gjt.mm.mysql.Driver
+  user: alfresco
+  password: alfresco
+
+# Defines the properties to be used for the required postgres DB
+# Note: the database (tables) information is also saved in the persistent volume claim
+postgresql:
+  replicaCount: 1
+  nameOverride: postgresql-acs
+  imageTag: "11.7.0"
+  commonAnnotations:
+    application: alfresco-content-services
+  postgresqlUsername: alfresco
+  postgresqlPassword: alfresco
+  postgresqlDatabase: alfresco
+  postgresqlExtendedConf:
+    max_connections: 300
+    log_min_messages: LOG
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      memory: "1500Mi"
+    limits:
+      memory: "1500Mi"
+
+metadataKeystore:
+  defaultKeystorePassword: "mp6yc0UD9e"
+  defaultKeyPassword: "oKIWzVdEdA"
